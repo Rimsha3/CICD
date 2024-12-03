@@ -29,7 +29,7 @@ jobs:
 
       # Step 4: Terraform Plan (optional, but good for visibility)
       - name: Terraform Plan
-        run: terraform plan
+        run: terraform plan -input=false -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}"
 
       # Step 5: Apply Terraform Configuration
       - name: Terraform Apply
