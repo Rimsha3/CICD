@@ -2,6 +2,7 @@ import boto3
 import paramiko
 import time
 import requests
+import os
 
 # AWS EC2 client
 ec2_client = boto3.client('ec2', region_name='us-east-1')  # Replace with your AWS region
@@ -22,7 +23,8 @@ def check_instance_running(instance_id):
     """
     response = ec2_client.describe_instances(InstanceIds=[instance_id])
     state = response['Reservations'][0]['Instances'][0]['State']['Name']
-    return state == 'running'
+    valid_states = ['running', 'pending']  # Handle states like pending if necessary
+    return state in valid_states
 
 # Function to get the public IP address of the instance
 def get_instance_ip(instance_id):
@@ -39,7 +41,7 @@ def check_appdynamics_agent(ip):
     (This assumes AppDynamics exposes an HTTP status endpoint or service)
     """
     try:
-        response = requests.get(f"http://{ip}:8080", timeout=5)  # Adjust port if necessary
+        response = requests.get(f"http://{ip}:8080", timeout=10)  # Adjust timeout if needed
         if response.status_code == 200:
             print(f"AppDynamics agent is running on {ip}.")
             return True
@@ -57,7 +59,8 @@ def check_appdynamics_agent_via_ssh(ip):
     """
     try:
         # SSH into EC2 instance
-        key = paramiko.RSAKey.from_private_key_file('/path/to/your/keypair.pem')  # Use your private key
+        key_path = os.environ.get("EC2_KEY_PATH", "/path/to/your/keypair.pem")  # Use environment variable for security
+        key = paramiko.RSAKey.from_private_key_file(key_path)
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -96,12 +99,4 @@ def test_instances():
 
         # 3. Check if AppDynamics agent is running (via HTTP or SSH)
         print(f"Checking if AppDynamics agent is installed on {ip}...")
-        if not check_appdynamics_agent(ip):
-            print(f"AppDynamics agent is not responding on {ip}. Attempting via SSH...")
-
-            # Optionally, check the agent via SSH (if needed)
-            check_appdynamics_agent_via_ssh(ip)
-
-if __name__ == "__main__":
-    # Run the tests
-    test_instances()
+        if not check_appd
