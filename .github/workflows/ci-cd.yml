@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Terraform CI/CD Pipeline
 
 on:
   push:
@@ -9,31 +9,37 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest  # or macos-latest if using macOS
+  terraform:
+    runs-on: ubuntu-latest  # Use an Ubuntu runner for the job
 
     steps:
-      # 1. Checkout the code
+      # Step 1: Checkout the code from the repository
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # 2. Set up Python (use the Python version that works best for your project)
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      # Step 2: Set up Terraform
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
         with:
-          python-version: '3.8'  # You can try changing the Python version if needed
+          terraform_version: 1.4.6  # Specify the Terraform version to use
 
-      # 3. Install dependencies
+      # Step 3: Initialize Terraform (downloads plugins and initializes the backend)
+      - name: Terraform Init
+        run: terraform init
+
+      # Step 4: Apply the Terraform configuration (automatically approve changes)
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      # Step 5: Install Python dependencies (for testing)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip cache purge  # Clear the pip cache
-          pip install --no-cache-dir -r requirements.txt
+          pip install boto3 requests  # Install boto3 and requests for the testing script
 
-      # 4. Run tests
-      - name: Run tests
-        run: |
-          pytest
+      # Step 6: Run tests on the infrastructure
+      - name: Run tests on infrastructure
+        run: python test_infrastructure.py  # Run the Python test script that verifies EC2 and AppDynamics agent status
 
       # 5. Deploy to AWS (optional)
       - name: Deploy to AWS
