@@ -1,1 +1,18 @@
-altgraph==0.17.1  # Try an earlier, stable version of altgraph
+# Testing framework
+pytest==6.2.4           # For running unit tests
+
+# AWS SDK for Python (boto3 is required to interact with AWS services)
+boto3==1.18.5           # For AWS S3 and other services
+
+# HTTP library (requests can be useful if your app makes HTTP requests)
+requests==2.25.1        # For making HTTP requests
+
+# altgraph (if used, especially for pyinstaller, py2app, etc.)
+altgraph==0.17.2        # Used by some packaging tools
+
+# Optional additional dependencies
+# If you're using Flask, Django, or any other frameworks, you might add them here
+# Flask==2.0.1           # For Flask-based web apps
+# gunicorn==20.1.0       # If you're deploying with Gunicorn (e.g., on AWS, Heroku)
+# pandas==1.3.2          # If your project uses pandas for data analysis, etc.
+
