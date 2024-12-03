@@ -31,21 +31,35 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve
 
-      # Step 5: Install Python dependencies (for testing)
+      # Step 5: Install dependencies (Python dependencies for testing and deployment)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install boto3 requests  # Install boto3 and requests for the testing script
 
-      # Step 6: Run tests on the infrastructure
-      - name: Run tests on infrastructure
-        run: python test_infrastructure.py  # Run the Python test script that verifies EC2 and AppDynamics agent status
-
-      # 5. Deploy to AWS (optional)
-      - name: Deploy to AWS
+      # Step 6: Deploy the AppDynamics agent to EC2 instances using AWS SSM
+      - name: Deploy AppDynamics agent to EC2 via SSM
         run: |
-          aws s3 cp ./build/ s3://deploymentbucket321/ --recursive
+          # Fetch the EC2 instance IDs from Terraform output (you should replace this with your actual output)
+          INSTANCE_IDS=$(terraform output -raw instance_ids)
+          echo "Deploying AppDynamics agent to EC2 instances: $INSTANCE_IDS"
+          
+          # Send the SSM command to download and install the AppDynamics agent on EC2 instances
+          aws ssm send-command \
+            --instance-ids $INSTANCE_IDS \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "wget -qO- https://download.appdynamics.com/download/prod/appdynamics-agents/AppDynamicsJavaAgent.zip -O /tmp/AppDynamicsJavaAgent.zip", 
+              "unzip /tmp/AppDynamicsJavaAgent.zip -d /opt", 
+              "echo \"controller.host=${{ secrets.APPD_CONTROLLER_HOST }}\" >> /opt/AppDynamicsJavaAgent/conf/controller-info.xml", 
+              "echo \"controller.licenseKey=${{ secrets.APPD_LICENSE_KEY }}\" >> /opt/AppDynamicsJavaAgent/conf/controller-info.xml"
+            ]' \
+            --region ${{ secrets.AWS_REGION }}  # Make sure to set the region correctly
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}  # AWS region like 'us-east-1'
+
+      # Step 7: Run tests on infrastructure (verify EC2 and AppDynamics agent)
+      - name: Run tests on infrastructure
+        run: python test_infrastructure.py  # This will run the Python test script that verifies EC2 and AppDynamics agent status

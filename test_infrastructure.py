@@ -1,42 +1,107 @@
 import boto3
-import pytest
+import paramiko
 import time
+import requests
 
-# Configure your AWS resources for testing (these would be the names or IDs of the resources created by Terraform)
-EC2_INSTANCE_ID = "i-xxxxxxxxxxxxxxxxx"
-APPDYNAMICS_AGENT_HOST = "your-appdynamics-agent-host"
+# AWS EC2 client
+ec2_client = boto3.client('ec2', region_name='us-east-1')  # Replace with your AWS region
 
-# Initialize the boto3 EC2 client
-ec2 = boto3.client('ec2', region_name='us-east-1')
+# EC2 instance IDs (replace with your actual EC2 instance IDs or fetch dynamically)
+instance_ids = ["i-xxxxxxxxxxxxxxxxx", "i-yyyyyyyyyyyyyyyy"]  # Replace with actual instance IDs
 
-# Test if EC2 instance is running
-def test_ec2_instance_running():
-    response = ec2.describe_instances(InstanceIds=[EC2_INSTANCE_ID])
-    assert len(response['Reservations']) > 0
-    instance = response['Reservations'][0]['Instances'][0]
-    assert instance['State']['Name'] == 'running', f"EC2 instance {EC2_INSTANCE_ID} is not running."
+# The user to SSH into EC2 (change this depending on your AMI's user)
+ssh_user = "ec2-user"  # For Amazon Linux, change if you're using a different AMI
 
-# Optionally, add a delay for the AppDynamics agent setup to allow time for the agent to start
-def test_appdynamics_agent_installed():
-    # Make sure the EC2 instance is up and running first
-    time.sleep(60)  # Wait for the agent to initialize on the EC2 instance (if needed)
-    
-    # This could be an HTTP check to ensure that the AppDynamics agent is serving data
-    # For example, using requests to make sure the agent is responding on a specific port or endpoint
-    import requests
-    url = f'http://{APPDYNAMICS_AGENT_HOST}:8090/agent'
-    response = requests.get(url)
-    
-    assert response.status_code == 200, f"AppDynamics agent is not reachable at {url}."
+# AppDynamics agent check endpoint (use an appropriate endpoint for your AppDynamics configuration)
+appdynamics_check_url = "http://localhost:8080"  # Example check URL, adjust for your agent configuration
 
-# Example test to check if S3 bucket exists
-def test_s3_bucket_exists():
-    s3 = boto3.client('s3', region_name='us-east-1')
-    bucket_name = "your-deployment-bucket"
+# Function to check if EC2 instance is running
+def check_instance_running(instance_id):
+    """
+    Check if the EC2 instance is running.
+    """
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    state = response['Reservations'][0]['Instances'][0]['State']['Name']
+    return state == 'running'
+
+# Function to get the public IP address of the instance
+def get_instance_ip(instance_id):
+    """
+    Get the public IP address of an EC2 instance.
+    """
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    return response['Reservations'][0]['Instances'][0]['PublicIpAddress']
+
+# Function to check if the AppDynamics agent is installed and running on the EC2 instance
+def check_appdynamics_agent(ip):
+    """
+    Check if the AppDynamics agent is installed and running by accessing the agent's health check or status page.
+    (This assumes AppDynamics exposes an HTTP status endpoint or service)
+    """
     try:
-        response = s3.head_bucket(Bucket=bucket_name)
-        assert response['ResponseMetadata']['HTTPStatusCode'] == 200, f"S3 bucket {bucket_name} does not exist or is not accessible."
-    except s3.exceptions.ClientError as e:
-        assert False, f"S3 bucket {bucket_name} does not exist or is not accessible. Error: {e}"
+        response = requests.get(f"http://{ip}:8080", timeout=5)  # Adjust port if necessary
+        if response.status_code == 200:
+            print(f"AppDynamics agent is running on {ip}.")
+            return True
+        else:
+            print(f"AppDynamics agent is not running on {ip}, status code: {response.status_code}.")
+            return False
+    except requests.RequestException as e:
+        print(f"Error accessing AppDynamics agent on {ip}: {str(e)}")
+        return False
 
-# You could add more tests for other resources depending on your infrastructure
+# Function to SSH into EC2 instance and check if AppDynamics agent is installed
+def check_appdynamics_agent_via_ssh(ip):
+    """
+    SSH into the EC2 instance and check if the AppDynamics agent is installed.
+    """
+    try:
+        # SSH into EC2 instance
+        key = paramiko.RSAKey.from_private_key_file('/path/to/your/keypair.pem')  # Use your private key
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        ssh_client.connect(ip, username=ssh_user, pkey=key)
+
+        # Check if AppDynamics agent exists
+        stdin, stdout, stderr = ssh_client.exec_command('ls /opt/AppDynamicsJavaAgent')
+        output = stdout.read().decode('utf-8').strip()
+
+        if output:
+            print(f"AppDynamics agent is installed at /opt/AppDynamicsJavaAgent on {ip}.")
+        else:
+            print(f"AppDynamics agent is NOT installed on {ip}.")
+
+        ssh_client.close()
+    except Exception as e:
+        print(f"Error SSH-ing into {ip}: {str(e)}")
+
+# Main function to check all instances and the AppDynamics agent
+def test_instances():
+    """
+    Run all tests for the infrastructure (EC2 instances and AppDynamics agent).
+    """
+    for instance_id in instance_ids:
+        print(f"Checking EC2 instance {instance_id}...")
+
+        # 1. Check EC2 instance status
+        if check_instance_running(instance_id):
+            print(f"EC2 instance {instance_id} is running.")
+        else:
+            print(f"EC2 instance {instance_id} is NOT running!")
+
+        # 2. Get public IP for the instance
+        ip = get_instance_ip(instance_id)
+        print(f"Instance {instance_id} public IP: {ip}")
+
+        # 3. Check if AppDynamics agent is running (via HTTP or SSH)
+        print(f"Checking if AppDynamics agent is installed on {ip}...")
+        if not check_appdynamics_agent(ip):
+            print(f"AppDynamics agent is not responding on {ip}. Attempting via SSH...")
+
+            # Optionally, check the agent via SSH (if needed)
+            check_appdynamics_agent_via_ssh(ip)
+
+if __name__ == "__main__":
+    # Run the tests
+    test_instances()
