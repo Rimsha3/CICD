@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
   # Define the job(s)
   build:
@@ -36,12 +37,11 @@ jobs:
           pytest
 
       # 5. Deploy to production (optional)
-    - name: Deploy to AWS
-       run: |
-         aws s3 cp ./build/ s3://deploymentbucket321/ --recursive
-    env:
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    AWS_DEFAULT_REGION: us-east-1
-
+      - name: Deploy to AWS
+        run: |
+          aws s3 cp ./build/ s3://deploymentbucket321/ --recursive
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
 
