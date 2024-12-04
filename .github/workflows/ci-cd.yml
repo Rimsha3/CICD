@@ -11,7 +11,6 @@ on:
 jobs:
   terraform:
     runs-on: ubuntu-latest  # Use an Ubuntu runner for the job
-
     steps:
       # Step 1: Checkout the code from the repository
       - name: Checkout code
@@ -29,7 +28,7 @@ jobs:
 
       # Step 4: Terraform Plan (optional, but good for visibility)
       - name: Terraform Plan
-       run: terraform plan -input=false \
+        run: terraform plan -input=false \
         -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}" \
         -var "appd_license_key=${{ secrets.APPD_LICENSE_KEY }}"
     
