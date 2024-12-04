@@ -27,11 +27,12 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-        - name: Terraform Plan
-        run: terraform plan -input=false \
-          -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}" \
-          -var "appd_license_key=${{ secrets.APPD_LICENSE_KEY }}"
-      
+      # Step 4: Terraform Plan (optional, but good for visibility)
+      - name: Terraform Plan
+       run: terraform plan -input=false \
+        -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}" \
+        -var "appd_license_key=${{ secrets.APPD_LICENSE_KEY }}"
+    
 
       # Step 5: Apply Terraform Configuration
       - name: Terraform Apply
