@@ -10,45 +10,40 @@ on:
 
 jobs:
   terraform:
-    runs-on: ubuntu-latest  # Use an Ubuntu runner for the job
+    runs-on: ubuntu-latest
     steps:
-      # Step 1: Checkout the code from the repository
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Step 2: Set up Terraform
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v1
         with:
-          terraform_version: 1.4.6  # Specify the Terraform version to use
+          terraform_version: 1.4.6
 
-      # Step 3: Initialize Terraform (downloads plugins and initializes the backend)
-      - name: Terraform Init
-        run: terraform init
-
-      # Step 4: Terraform Plan (optional, but good for visibility)
-      - name: Terraform Plan
-        run: terraform plan -input=false \
-        -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}" \
-        -var "appd_license_key=${{ secrets.APPD_LICENSE_KEY }}"
-    
-
-      # Step 5: Apply Terraform Configuration
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-
-      # Step 6: Install dependencies (Python dependencies for testing and deployment)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install boto3 requests
 
-      # Step 7: Deploy AppDynamics agent to EC2 via SSM
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan -input=false \
+          -var "appd_controller_host=${{ secrets.APPD_CONTROLLER_HOST }}" \
+          -var "appd_license_key=${{ secrets.APPD_LICENSE_KEY }}"
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
       - name: Deploy AppDynamics agent to EC2 via SSM
         run: |
           INSTANCE_IDS=$(terraform output -raw instance_ids)
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "No EC2 instances found. Exiting."
+            exit 1
+          fi
           echo "Deploying AppDynamics agent to EC2 instances: $INSTANCE_IDS"
-          
           aws ssm send-command \
             --instance-ids $INSTANCE_IDS \
             --document-name "AWS-RunShellScript" \
@@ -62,8 +57,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      # Step 8: Run tests on infrastructure
       - name: Run tests on infrastructure
-        run: python test_infrastructure.py  # Verify EC2 and AppDynamics agent status
+        run: python test_infrastructure.py
